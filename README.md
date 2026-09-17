@@ -14,7 +14,7 @@ the published type declarations import nothing external.
 ## Install
 
 ```bash
-npm i passport-freeipa passport
+npm i @topsinoty/passport-freeipa passport
 ```
 
 Requires Node 20 or newer.
