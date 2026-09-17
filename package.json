@@ -1,45 +1,93 @@
 {
   "name": "passport-freeipa",
-  "version": "1.0.0",
-  "description": "Freeipa username and password authentication strategy for Passport.",
-  "main": "src/",
+  "version": "2.0.0",
+  "description": "FreeIPA username and password authentication strategy for Passport.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
-    "src"
+    "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
   "scripts": {
-    "test": "mocha --reporter spec --require test/bootstrap/node test/*.test.js",
-    "test:tdd": "npm run test -- --watch",
-    "test:coverage": "./node_modules/.bin/nyc npm test",
-    "coveralls": "npm run test:coverage && nyc report --reporter=text-lcov | coveralls"
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
+    "test:dist": "vitest run --project dist",
+    "check:package": "publint && attw --pack .",
+    "verify": "npm run build && npm run test:dist && npm run check:package",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run verify"
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/lucasdiedrich/passport-freeipa.git"
+    "url": "git+https://github.com/topsinoty/passport-freeipa.git"
   },
   "keywords": [
-    "Passport",
-    "Freeipa",
-    "IDM",
-    "Auth"
+    "passport",
+    "passport-strategy",
+    "freeipa",
+    "ipa",
+    "idm",
+    "ldap",
+    "kerberos",
+    "authentication",
+    "auth"
   ],
   "author": {
-    "name": "Lucas Diedrich",
-    "url": "https://http://github.com/lucasdiedrich/"
+    "name": "Oluwatobiloba Promise Temitope",
+    "url": "https://github.com/topsinoty/"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/lucasdiedrich/passport-freeipa/issues"
+    "url": "https://github.com/topsinoty/passport-freeipa/issues"
   },
-  "homepage": "https://github.com/lucasdiedrich/passport-freeipa#readme",
+  "homepage": "https://github.com/topsinoty/passport-freeipa#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "node-freeipa": "^2.1.0",
-    "passport": "^0.4.0",
-    "passport-strategy": "^1.0.0"
+    "set-cookie-parser": "^3.1.2"
+  },
+  "peerDependencies": {
+    "passport": ">=0.6.0"
   },
   "devDependencies": {
-    "chai": "^4.1.2",
-    "chai-passport-strategy": "^1.0.1",
-    "mocha": "^5.1.1",
-    "nyc": "^11.8.0"
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@eslint/js": "^10.0.1",
+    "@microsoft/api-extractor": "^7.59.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.5",
+    "@types/passport": "^1.0.17",
+    "@vitest/coverage-v8": "^5.0.1",
+    "eslint": "^10.10.0",
+    "express": "^5.2.1",
+    "globals": "^17.12.0",
+    "passport": "^0.7.0",
+    "publint": "^0.3.24",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vite": "^8.3.0",
+    "vite-plugin-dts": "^5.1.0",
+    "vitest": "^5.0.1"
   }
 }
