@@ -1,5 +1,5 @@
 {
-  "name": "passport-freeipa",
+  "name": "@topsinoty/passport-freeipa",
   "version": "2.0.0",
   "description": "FreeIPA username and password authentication strategy for Passport.",
   "type": "module",
