@@ -95,7 +95,7 @@ describe("createFreeipaClient", () => {
       );
     });
 
-    it("forwards every session cookie returned by FreeIPA", async () => {
+    it("forwards only the documented session cookie", async () => {
       const fetchStub = stubFetch(
         {
           status: 200,
@@ -109,7 +109,7 @@ describe("createFreeipaClient", () => {
       await client(fetchStub).userShow("jdoe", "pw");
 
       expect(fetchStub.calls[1]?.headers.cookie).toBe(
-        "ipa_other=xyz; ipa_session=abc123",
+        "ipa_session=abc123",
       );
     });
   });
@@ -234,6 +234,7 @@ describe("createFreeipaClient", () => {
         cause: {
           status: 401,
           contentType: "text/html",
+          requestCookieNames: ["ipa_session"],
           bodyPreview: "<h1>Unable to verify your Kerberos credentials</h1>",
         },
       });

@@ -2,8 +2,8 @@
  * Client for the FreeIPA session API, and readers for the entries it returns.
  *
  * Password authentication uses two endpoints:
- * `/ipa/session/login_password` trades credentials for session cookies, and
- * `/ipa/session/json` accepts JSON-RPC calls carrying them. Both
+ * `/ipa/session/login_password` trades credentials for an `ipa_session`
+ * cookie, and `/ipa/session/json` accepts JSON-RPC calls carrying it. Both
  * require a `Referer` under the server's own `/ipa` path.
  *
  * @packageDocumentation
@@ -18,6 +18,9 @@ const LOGIN_PATH = "/ipa/session/login_password";
 
 /** Endpoint accepting authenticated JSON-RPC calls. */
 const JSON_PATH = "/ipa/session/json";
+
+/** Cookie FreeIPA issues for password-authenticated JSON-RPC sessions. */
+const SESSION_COOKIE = "ipa_session";
 
 /** API version claimed when none is configured. */
 const DEFAULT_CLIENT_VERSION = "2.156";
@@ -128,29 +131,33 @@ const post = async (
 };
 
 /**
- * Extracts every cookie returned by the login response, returning the
- * `name=value` pairs so the complete session can be replayed. Some FreeIPA
- * deployments and reverse proxies set more than just `ipa_session`.
+ * Extracts the documented `ipa_session` cookie, returning its `name=value`
+ * pair so it can be replayed on the next request. Other response cookies are
+ * intentionally not sent to the JSON-RPC endpoint.
  *
- * @returns The cookie header, or `null` when the response sets no cookies.
+ * @returns The session cookie, or `null` when it is not present.
  */
-const readSessionCookies = (response: Response): string | null => {
+const readSessionCookie = (response: Response): string | null => {
   const cookies = parseSetCookie(response.headers.getSetCookie());
-  if (cookies.length === 0) {
-    return null;
-  }
+  const session = cookies.find((cookie) => cookie.name === SESSION_COOKIE);
 
-  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+  return session ? `${SESSION_COOKIE}=${session.value}` : null;
 };
 
 /** Keeps protocol diagnostics useful without retaining an entire HTML page. */
 const bodyPreview = (body: string): string => body.replace(/\s+/g, " ").trim().slice(0, 500);
 
+/** Describes a Cookie header without exposing any cookie values. */
+const cookieMetadata = (cookie: string): { names: string[]; length: number } => ({
+  names: cookie.split(";").map((part) => part.split("=", 1)[0]?.trim()).filter((name): name is string => Boolean(name)),
+  length: cookie.length,
+});
+
 /**
  * Exchanges credentials for a session cookie.
  *
  * @throws {@link FreeipaError} — `AUTH_FAILED` on 401, `PROTOCOL_ERROR` on
- * any other non-OK status or a 200 carrying no session cookies.
+ * any other non-OK status or a 200 carrying no session cookie.
  */
 const login = async (
   options: FreeipaOptions,
@@ -182,10 +189,10 @@ const login = async (
     );
   }
 
-  const cookie = readSessionCookies(response);
+  const cookie = readSessionCookie(response);
   if (cookie === null) {
     throw new FreeipaError(
-      "FreeIPA login succeeded but returned no session cookies.",
+      `FreeIPA login succeeded but returned no ${SESSION_COOKIE} cookie.`,
       "PROTOCOL_ERROR",
       {
         cause: {
@@ -224,6 +231,7 @@ const call = async (
 
   const contentType = response.headers.get("content-type");
   const rawBody = await response.text();
+  const requestCookie = cookieMetadata(cookie);
 
   let parsed: unknown;
   try {
@@ -237,6 +245,8 @@ const call = async (
           status: response.status,
           contentType,
           location: response.headers.get("location"),
+          requestCookieNames: requestCookie.names,
+          requestCookieLength: requestCookie.length,
           bodyPreview: bodyPreview(rawBody),
           parseError: cause,
         },
@@ -252,6 +262,8 @@ const call = async (
         cause: {
           status: response.status,
           contentType,
+          requestCookieNames: requestCookie.names,
+          requestCookieLength: requestCookie.length,
           bodyPreview: bodyPreview(rawBody),
           response: parsed,
         },
