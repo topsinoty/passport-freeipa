@@ -234,7 +234,7 @@ describe("createFreeipaClient", () => {
         cause: {
           status: 401,
           contentType: "text/html",
-          requestCookieNames: ["ipa_session"],
+          sessionHeaderNames: ["ipa_session"],
           bodyPreview: "<h1>Unable to verify your Kerberos credentials</h1>",
         },
       });
