@@ -2,8 +2,8 @@
  * Client for the FreeIPA session API, and readers for the entries it returns.
  *
  * Password authentication uses two endpoints:
- * `/ipa/session/login_password` trades credentials for an `ipa_session`
- * cookie, and `/ipa/session/json` accepts JSON-RPC calls carrying it. Both
+ * `/ipa/session/login_password` trades credentials for session cookies, and
+ * `/ipa/session/json` accepts JSON-RPC calls carrying them. Both
  * require a `Referer` under the server's own `/ipa` path.
  *
  * @packageDocumentation
@@ -18,9 +18,6 @@ const LOGIN_PATH = "/ipa/session/login_password";
 
 /** Endpoint accepting authenticated JSON-RPC calls. */
 const JSON_PATH = "/ipa/session/json";
-
-/** Cookie FreeIPA issues on a successful login. */
-const SESSION_COOKIE = "ipa_session";
 
 /** API version claimed when none is configured. */
 const DEFAULT_CLIENT_VERSION = "2.156";
@@ -131,23 +128,29 @@ const post = async (
 };
 
 /**
- * Extracts the `ipa_session` cookie, returning the `name=value` pair so it
- * can be replayed on the next request.
+ * Extracts every cookie returned by the login response, returning the
+ * `name=value` pairs so the complete session can be replayed. Some FreeIPA
+ * deployments and reverse proxies set more than just `ipa_session`.
  *
- * @returns The pair, or `null` when the response sets no session cookie.
+ * @returns The cookie header, or `null` when the response sets no cookies.
  */
-const readSessionCookie = (response: Response): string | null => {
+const readSessionCookies = (response: Response): string | null => {
   const cookies = parseSetCookie(response.headers.getSetCookie());
-  const session = cookies.find((cookie) => cookie.name === SESSION_COOKIE);
+  if (cookies.length === 0) {
+    return null;
+  }
 
-  return session ? `${SESSION_COOKIE}=${session.value}` : null;
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
 };
+
+/** Keeps protocol diagnostics useful without retaining an entire HTML page. */
+const bodyPreview = (body: string): string => body.replace(/\s+/g, " ").trim().slice(0, 500);
 
 /**
  * Exchanges credentials for a session cookie.
  *
  * @throws {@link FreeipaError} — `AUTH_FAILED` on 401, `PROTOCOL_ERROR` on
- * any other non-OK status or a 200 carrying no session cookie.
+ * any other non-OK status or a 200 carrying no session cookies.
  */
 const login = async (
   options: FreeipaOptions,
@@ -179,11 +182,17 @@ const login = async (
     );
   }
 
-  const cookie = readSessionCookie(response);
+  const cookie = readSessionCookies(response);
   if (cookie === null) {
     throw new FreeipaError(
-      `FreeIPA login succeeded but returned no ${SESSION_COOKIE} cookie.`,
+      "FreeIPA login succeeded but returned no session cookies.",
       "PROTOCOL_ERROR",
+      {
+        cause: {
+          status: response.status,
+          contentType: response.headers.get("content-type"),
+        },
+      },
     );
   }
 
@@ -213,14 +222,25 @@ const call = async (
     },
   );
 
+  const contentType = response.headers.get("content-type");
+  const rawBody = await response.text();
+
   let parsed: unknown;
   try {
-    parsed = await response.json();
+    parsed = JSON.parse(rawBody);
   } catch (cause) {
     throw new FreeipaError(
-      `FreeIPA returned a non-JSON response to ${method}.`,
+      `FreeIPA returned a non-JSON response to ${method} (HTTP ${String(response.status)}).`,
       "PROTOCOL_ERROR",
-      { cause },
+      {
+        cause: {
+          status: response.status,
+          contentType,
+          location: response.headers.get("location"),
+          bodyPreview: bodyPreview(rawBody),
+          parseError: cause,
+        },
+      },
     );
   }
 
@@ -228,7 +248,14 @@ const call = async (
     throw new FreeipaError(
       `FreeIPA returned a malformed response to ${method}.`,
       "PROTOCOL_ERROR",
-      { cause: parsed },
+      {
+        cause: {
+          status: response.status,
+          contentType,
+          bodyPreview: bodyPreview(rawBody),
+          response: parsed,
+        },
+      },
     );
   }
 

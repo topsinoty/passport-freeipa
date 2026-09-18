@@ -1,6 +1,6 @@
 {
   "name": "@topsinoty/passport-freeipa",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "FreeIPA username and password authentication strategy for Passport.",
   "type": "module",
   "main": "./dist/index.cjs",

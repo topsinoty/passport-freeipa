@@ -95,7 +95,7 @@ describe("createFreeipaClient", () => {
       );
     });
 
-    it("picks the session cookie out by name, not by position", async () => {
+    it("forwards every session cookie returned by FreeIPA", async () => {
       const fetchStub = stubFetch(
         {
           status: 200,
@@ -108,7 +108,9 @@ describe("createFreeipaClient", () => {
       );
       await client(fetchStub).userShow("jdoe", "pw");
 
-      expect(fetchStub.calls[1]?.headers.cookie).toBe("ipa_session=abc123");
+      expect(fetchStub.calls[1]?.headers.cookie).toBe(
+        "ipa_other=xyz; ipa_session=abc123",
+      );
     });
   });
 
@@ -171,7 +173,14 @@ describe("createFreeipaClient", () => {
       },
       {
         case: "a non-JSON RPC response",
-        responses: [loginOk, { status: 200, body: "<html>502</html>" }],
+        responses: [
+          loginOk,
+          {
+            status: 502,
+            headers: { "content-type": "text/html; charset=UTF-8" },
+            body: "<!DOCTYPE html><html><title>Bad Gateway</title></html>",
+          },
+        ],
         code: "PROTOCOL_ERROR",
       },
       {
@@ -211,6 +220,23 @@ describe("createFreeipaClient", () => {
       await expect(client(fetchStub).userShow("jdoe", "pw")).rejects.toMatchObject(
         { code },
       );
+    });
+
+    it("explains an HTML response from the JSON-RPC endpoint", async () => {
+      const fetchStub = stubFetch(loginOk, {
+        status: 401,
+        headers: { "content-type": "text/html" },
+        body: "<h1>Unable to verify your Kerberos credentials</h1>",
+      });
+
+      await expect(client(fetchStub).userShow("jdoe", "pw")).rejects.toMatchObject({
+        code: "PROTOCOL_ERROR",
+        cause: {
+          status: 401,
+          contentType: "text/html",
+          bodyPreview: "<h1>Unable to verify your Kerberos credentials</h1>",
+        },
+      });
     });
 
     it("names the server in a network failure, without the password", async () => {
